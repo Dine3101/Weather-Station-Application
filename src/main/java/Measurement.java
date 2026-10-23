@@ -1,8 +1,10 @@
+import java.io.Serializable;
+
 /***Measurement Entity:
  * time - int
  * temperature - double
  */
-public class Measurement {
+public class Measurement implements Serializable {
 
     private int time;
 

@@ -1,3 +1,7 @@
+import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaSparkContext;
+
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -8,13 +12,42 @@ import java.util.stream.Collectors;
  * measurements - List<Measurement>
  *stations - static List<WeatherStation>
  */
-public class WeatherStation {
+public class WeatherStation implements Serializable {
 
     private String city;
     private List<Measurement> measurements;
     private static List<WeatherStation> stations;
+    private static SparkConf sparkConf;
+    private static JavaSparkContext sparkContext;
 
-    /***Task1 - Return max temperature measured by the station in [startTime,endTime}*/
+    /**
+     * Implemented the following task using Spark and RDD
+     * Number of times a temperature in the intervals
+     *  [t1-r..t1+r], [t2-r..t2+r]
+     *  has been measured so far by any
+     * of the weather stations in stations.*/
+    public static int countTemperature(double t){
+        int count=0;
+
+        // Creating a spark context if not initialized previously in other methods
+        if(sparkContext==null){
+            initSparkContext();
+        }
+
+        count=(int)sparkContext.parallelize(stations) // Creating a RDD of weather stations - JavaRDD<WeatherStation>
+                // Transformation - collect temperatures measured by each weather station in a new RDD<Double>
+                .flatMap(station -> station.getMeasurements().parallelStream()
+                        .map(measurement->measurement.getTemperature())
+                        .iterator())
+                // Transformation - checking if the temperature measured a weather station can be a candidate solution
+                .filter(temp -> temp>=t-1 && temp<=t+1)
+                // Action - count the temperatures in resulting RDD<Double> temperatures
+                .count();
+
+        return count;
+    }
+
+    /*** Return max temperature measured by the station in [startTime,endTime}*/
     public double maxTemperature(int startTime, int endTime){
 
         double maxTemperature=0.0;
@@ -33,7 +66,7 @@ public class WeatherStation {
     }
 
     /**
-     * Task2 - number of times a temperature in the intervals
+     * Number of times a temperature in the intervals
      *  [t1-r..t1+r], [t2-r..t2+r]
      *  has been measured so far by any
      * of the weather stations in stations.*/
@@ -156,5 +189,22 @@ public class WeatherStation {
                 "city='" + city +
                 "', measurements=" + measurements +
                 "}\n";
+    }
+
+    /***
+     * Initializing Spark context
+     */
+    public static void initSparkContext(){
+        sparkConf=new SparkConf().setMaster("local").setAppName("Weather-Station");
+        sparkContext=new JavaSparkContext(sparkConf);
+    }
+
+    /***
+     * Closing Spark Context
+     */
+    public static void closeSparkContext(){
+        if(sparkContext!=null){
+            sparkContext.close();
+        }
     }
 }
